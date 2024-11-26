@@ -5,7 +5,7 @@ RUN yarn install
 COPY .eslintrc.js .prettierignore .prettierrc .rescriptsrc.js LICENSE netlify.toml tsconfig.json ./
 COPY public ./public
 COPY src ./src
-COPY .env.cytonic.testnet ./
+COPY .env.cytonic.testnet ./.env
 RUN yarn build
 
 FROM nginx:1.27.2-alpine
