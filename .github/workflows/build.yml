@@ -1,0 +1,55 @@
+name: Build
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  APP_NAME: ${{ github.event.repository.name }}
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: 905418425072
+
+permissions:
+  contents: read
+  actions: write # require to delete cache
+
+jobs:
+  init-environments:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find commit short sha
+        id: short_sha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    outputs:
+      sha_short: ${{ steps.short_sha.outputs.sha_short }}
+
+
+  build-and-push-images:
+    runs-on: ubuntu-latest
+    needs: [init-environments]
+    strategy:
+      matrix:
+        ENVIRONMENT: [dev, prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker Build Image
+        env:
+          ECR_ENDPOINT: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        run: |
+          docker build \
+              --tag $ECR_ENDPOINT/${{ matrix.ENVIRONMENT }}/cytonic_${{ env.APP_NAME }}\:${{ needs.init-environments.outputs.sha_short }} \
+              --tag $ECR_ENDPOINT/${{ matrix.ENVIRONMENT }}/cytonic_${{ env.APP_NAME }}\:latest .
+
+      - name: Docker Push Image
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+          ECR_ENDPOINT: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_ENDPOINT
+          docker push --all-tags $ECR_ENDPOINT/${{ matrix.ENVIRONMENT }}/cytonic_${{ env.APP_NAME }}
